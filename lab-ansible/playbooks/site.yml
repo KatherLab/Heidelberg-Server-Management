@@ -1,0 +1,4 @@
+- import_playbook: base.yml
+- import_playbook: gpu_check.yml
+- import_playbook: users.yml
+

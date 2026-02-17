@@ -1,0 +1,14 @@
+- name: Check NVIDIA GPUs
+  hosts: gpu
+  gather_facts: false
+
+  tasks:
+    - name: Run nvidia-smi
+      command: nvidia-smi
+      register: smi
+      changed_when: false
+
+    - name: Show nvidia-smi output (first lines)
+      debug:
+        var: smi.stdout_lines
+

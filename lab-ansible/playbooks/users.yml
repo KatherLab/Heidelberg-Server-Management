@@ -1,0 +1,23 @@
+- name: Create / manage lab member accounts (non-sudo)
+  hosts: gpu
+  become: true
+  vars_files:
+    - ../vault/lab_users.vault.yml
+
+  tasks:
+    - name: Ensure lab users exist (no sudo)
+      user:
+        name: "{{ item.username }}"
+        shell: /bin/bash
+        create_home: true
+        password: "{{ item.password_hash }}"
+        groups: "{{ lab_group }}"
+        append: true
+        state: present
+      loop: "{{ lab_users }}"
+
+#    - name: Force password change at first login (recommended)
+#      command: "chage -d 0 {{ item.username }}"
+#      changed_when: true
+#      loop: "{{ lab_users }}"
+

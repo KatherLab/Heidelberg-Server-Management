@@ -1,0 +1,17 @@
+# Keep base packages small and stable
+base_packages:
+  - build-essential
+  - git
+  - curl
+  - wget
+  - htop
+  - tmux
+  - vim
+  - unzip
+  - pkg-config
+  - python3-pip
+  - python3-venv
+
+# Optional: a shared "lab" group for file permissions
+lab_group: lab
+

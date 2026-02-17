@@ -1,0 +1,24 @@
+- name: Base config for lab GPU servers
+  hosts: gpu
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Upgrade installed packages (safe default)
+      apt:
+        upgrade: dist
+
+    - name: Install baseline packages
+      apt:
+        name: "{{ base_packages }}"
+        state: present
+
+    - name: Ensure lab group exists
+      group:
+        name: "{{ lab_group }}"
+        state: present
+

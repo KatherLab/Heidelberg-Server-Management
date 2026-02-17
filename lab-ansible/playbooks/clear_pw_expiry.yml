@@ -1,0 +1,11 @@
+- name: Clear forced password change for existing lab users
+  hosts: gpu
+  become: true
+  vars_files:
+    - ../vault/lab_users.vault.yml
+
+  tasks:
+    - name: Mark password as changed today
+      shell: "chage -d {{ lookup('pipe', 'date +%Y-%m-%d') }} {{ item.username }}"
+      loop: "{{ lab_users }}"
+

@@ -1,0 +1,134 @@
+- name: Install Docker Engine (apt) + NVIDIA Container Toolkit + persistence mode
+  hosts: gpu
+  become: true
+
+  vars:
+    docker_users:
+      - jeff   # add more if you want, but consider security implications
+
+  tasks:
+    - name: Remove snap docker if present
+      shell: |
+        if command -v snap >/dev/null 2>&1 && snap list 2>/dev/null | awk '{print $1}' | grep -qx docker; then
+          snap stop docker || true
+          snap remove docker || true
+        fi
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Remove old docker packages (cleanup)
+      apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Create apt keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker apt repository
+      apt_repository:
+        repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install Docker Engine + plugins
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Ensure docker service is enabled and running
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Add users to docker group
+      user:
+        name: "{{ item }}"
+        groups: docker
+        append: true
+      loop: "{{ docker_users }}"
+
+    # ---- NVIDIA Container Toolkit (GPU in Docker) ----
+    - name: Add NVIDIA container toolkit repository (apt)
+      shell: |
+        set -euo pipefail
+        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+          | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+          > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Install NVIDIA container toolkit
+      apt:
+        name: nvidia-container-toolkit
+        state: present
+        update_cache: yes
+
+    - name: Configure Docker runtime for NVIDIA
+      command: nvidia-ctk runtime configure --runtime=docker
+      changed_when: true
+
+    - name: Restart Docker after NVIDIA runtime config
+      systemd:
+        name: docker
+        state: restarted
+
+    # ---- NVIDIA persistence mode ----
+    - name: Enable NVIDIA persistence mode now
+      command: nvidia-smi -pm 1
+      changed_when: true
+
+    - name: Install a systemd unit to enable persistence mode at boot
+      copy:
+        dest: /etc/systemd/system/nvidia-persistenced-ansible.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Enable NVIDIA persistence mode (Ansible)
+          After=multi-user.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/nvidia-smi -pm 1
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable persistence-mode service
+      systemd:
+        name: nvidia-persistenced-ansible.service
+        enabled: true
+        state: started
