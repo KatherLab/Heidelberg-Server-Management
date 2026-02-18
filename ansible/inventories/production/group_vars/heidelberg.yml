@@ -1,0 +1,6 @@
+# inventories/production/group_vars/heidelberg.yml
+# Connection defaults for Heidelberg hosts.
+
+ansible_user: jeff
+ansible_become: true
+ansible_become_method: sudo

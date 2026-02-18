@@ -1,3 +1,11 @@
+# playbooks/clear_pw_expiry.yml
+#
+# Clears "must change password" flags for existing lab users by setting
+# the "last password change" date to today.
+#
+# Note: This is not strictly idempotent because "today" changes daily.
+# We therefore mark the task as "changed_when: false" to avoid noisy runs.
+
 - name: Clear forced password change for existing lab users
   hosts: heidelberg
   become: true
@@ -6,6 +14,8 @@
 
   tasks:
     - name: Mark password as changed today
-      shell: "chage -d {{ lookup('pipe', 'date +%Y-%m-%d') }} {{ item.username }}"
+      ansible.builtin.shell: "chage -d {{ lookup('pipe', 'date +%Y-%m-%d') }} {{ item.username }}"
+      args:
+        executable: /bin/bash
       loop: "{{ lab_users }}"
-
+      changed_when: false

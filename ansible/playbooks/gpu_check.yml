@@ -1,14 +1,17 @@
+# playbooks/gpu_check.yml
+#
+# Quick diagnostic to confirm NVIDIA driver visibility on each host.
+
 - name: Check NVIDIA GPUs
   hosts: heidelberg
   gather_facts: false
 
   tasks:
-    - name: Run nvidia-smi
-      command: nvidia-smi
+    - name: Run nvidia-smi (must exist for GPU hosts)
+      ansible.builtin.command: nvidia-smi
       register: smi
       changed_when: false
 
     - name: Show nvidia-smi output (first lines)
-      debug:
+      ansible.builtin.debug:
         var: smi.stdout_lines
-

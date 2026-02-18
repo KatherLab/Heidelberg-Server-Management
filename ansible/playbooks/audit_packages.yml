@@ -1,22 +1,43 @@
+# playbooks/audit_packages.yml
+#
+# Collects a per-host list of manually installed apt packages (apt-mark showmanual).
+# Output is fetched back to the controller under ansible/audits/.
+#
+# Tip: This is a *reporting* playbook. It intentionally does not change the remote state.
+
 - name: Audit manual packages per host
   hosts: heidelberg
   gather_facts: false
   become: true
 
+  vars:
+    audit_dir: "audits"
+
   tasks:
+    - name: Ensure local audit directory exists on controller
+      ansible.builtin.file:
+        path: "{{ audit_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      run_once: true
+
     - name: Collect manual packages
-      shell: "apt-mark showmanual | sort"
+      ansible.builtin.shell: "apt-mark showmanual | sort"
+      args:
+        executable: /bin/bash
       register: manual
       changed_when: false
 
     - name: Write manual package list on remote
-      copy:
+      ansible.builtin.copy:
         dest: "/tmp/apt-manual.txt"
-        content: "{{ manual.stdout }}\n"
+        content: "{{ manual.stdout }}
+"
         mode: "0644"
 
     - name: Fetch list to controller
-      fetch:
+      ansible.builtin.fetch:
         src: "/tmp/apt-manual.txt"
-        dest: "audits/{{ inventory_hostname }}-apt-manual.txt"
+        dest: "{{ audit_dir }}/{{ inventory_hostname }}-apt-manual.txt"
         flat: true

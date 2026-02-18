@@ -1,3 +1,18 @@
+# playbooks/users.yml
+#
+# Creates/maintains lab user accounts.
+# Governance: lab users are *non-sudo*; only the dedicated admin user should be sudo-capable.
+#
+# Vault:
+# - User definitions live in ansible/vault/lab_users.vault.yml (encrypted).
+# - Expected structure:
+#     lab_users:
+#       - username: alice
+#         password_hash: "$6$...."     # SHA-512 crypt (see ADMIN_SOP.md)
+#
+# Variables:
+# - lab_group (string) in inventories/.../group_vars/all.yml
+
 - name: Create / manage lab member accounts (non-sudo)
   hosts: heidelberg
   become: true
@@ -5,19 +20,28 @@
     - ../vault/lab_users.vault.yml
 
   tasks:
+    - name: Ensure lab group exists (so users.yml can be run standalone)
+      ansible.builtin.group:
+        name: "{{ lab_group }}"
+        state: present
+
     - name: Ensure lab users exist (no sudo)
-      user:
+      ansible.builtin.user:
         name: "{{ item.username }}"
         shell: /bin/bash
         create_home: true
         password: "{{ item.password_hash }}"
+        # If you *do not* want to reset passwords on every run, consider:
+        #   update_password: on_create
         groups: "{{ lab_group }}"
         append: true
         state: present
       loop: "{{ lab_users }}"
 
-#    - name: Force password change at first login (recommended)
-#      command: "chage -d 0 {{ item.username }}"
+# Optional: force password change at first login.
+# Enable if you want users to set their own password on first login.
+#
+#    - name: Force password change at first login
+#      ansible.builtin.command: "chage -d 0 {{ item.username }}"
 #      changed_when: true
 #      loop: "{{ lab_users }}"
-

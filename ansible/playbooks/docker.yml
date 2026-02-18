@@ -1,3 +1,16 @@
+# playbooks/docker.yml
+#
+# Installs Docker Engine from Docker's official apt repo, installs NVIDIA Container Toolkit,
+# configures Docker to use the NVIDIA runtime, and enables GPU persistence mode.
+#
+# Idempotence notes:
+# - Some vendor bootstrap steps (key conversion, repo bootstrap, runtime configure) use shell/command.
+#   They are written to be as repeatable as possible, but upstream changes may require re-running.
+#
+# Variables (override in inventory if needed):
+# - docker_users: users added to the 'docker' group (root-equivalent power!)
+# - docker_apt_arch_map: maps ansible_architecture to Docker repo arch
+
 - name: Install Docker Engine (apt) + NVIDIA Container Toolkit + persistence mode
   hosts: heidelberg
   become: true
@@ -10,19 +23,26 @@
       aarch64: arm64
     docker_apt_arch: "{{ docker_apt_arch_map.get(ansible_architecture, ansible_architecture) }}"
 
+    nvidia_keyring: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    nvidia_list: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
   tasks:
-    - name: Remove snap docker if present
-      shell: |
+    # ---- Cleanup: snap-based Docker conflicts ----
+    - name: Remove snap docker if present (best-effort)
+      ansible.builtin.shell: |
+        set -euo pipefail
         if command -v snap >/dev/null 2>&1 && snap list 2>/dev/null | awk '{print $1}' | grep -qx docker; then
           snap stop docker || true
           snap remove docker || true
+          echo "removed"
         fi
       args:
         executable: /bin/bash
-      changed_when: false
+      register: snap_docker
+      changed_when: "'removed' in snap_docker.stdout"
 
     - name: Remove old docker packages (cleanup)
-      apt:
+      ansible.builtin.apt:
         name:
           - docker
           - docker-engine
@@ -32,34 +52,35 @@
         state: absent
 
     - name: Install prerequisites
-      apt:
+      ansible.builtin.apt:
         name:
           - ca-certificates
           - curl
           - gnupg
         state: present
-        update_cache: yes
+        update_cache: true
 
+    # ---- Docker official repository ----
     - name: Create apt keyrings directory
-      file:
+      ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
         mode: "0755"
 
     - name: Add Docker GPG key
-      get_url:
+      ansible.builtin.get_url:
         url: https://download.docker.com/linux/ubuntu/gpg
         dest: /etc/apt/keyrings/docker.asc
         mode: "0644"
 
     - name: Add Docker apt repository
-      apt_repository:
+      ansible.builtin.apt_repository:
         repo: "deb [arch={{ docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         filename: docker
         state: present
 
     - name: Install Docker Engine + plugins
-      apt:
+      ansible.builtin.apt:
         name:
           - docker-ce
           - docker-ce-cli
@@ -67,55 +88,83 @@
           - docker-buildx-plugin
           - docker-compose-plugin
         state: present
-        update_cache: yes
+        update_cache: true
 
     - name: Ensure docker service is enabled and running
-      systemd:
+      ansible.builtin.systemd:
         name: docker
         enabled: true
         state: started
 
     - name: Add users to docker group
-      user:
+      ansible.builtin.user:
         name: "{{ item }}"
         groups: docker
         append: true
       loop: "{{ docker_users }}"
 
     # ---- NVIDIA Container Toolkit (GPU in Docker) ----
-    - name: Add NVIDIA container toolkit repository (apt)
-      shell: |
-        set -euo pipefail
-        curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-        curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-          | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-          > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    - name: Download NVIDIA container toolkit GPG key (armored)
+      ansible.builtin.get_url:
+        url: https://nvidia.github.io/libnvidia-container/gpgkey
+        dest: /tmp/nvidia-container-toolkit.gpgkey
+        mode: "0644"
+
+    - name: Convert NVIDIA GPG key to keyring (dearmor) if missing
+      ansible.builtin.command: "gpg --dearmor -o {{ nvidia_keyring }} /tmp/nvidia-container-toolkit.gpgkey"
       args:
-        executable: /bin/bash
-      changed_when: false
+        creates: "{{ nvidia_keyring }}"
+      register: nvidia_keyring_cmd
+      changed_when: nvidia_keyring_cmd.rc == 0
+
+    - name: Add NVIDIA container toolkit repository list
+      ansible.builtin.copy:
+        dest: "{{ nvidia_list }}"
+        mode: "0644"
+        content: |
+          # Installed by Ansible. If you change Ubuntu release, re-run this playbook.
+          deb [signed-by={{ nvidia_keyring }}] https://nvidia.github.io/libnvidia-container/stable/deb/$(. /etc/os-release;echo $ID$VERSION_ID) /
+      register: nvidia_list_copy
+
+    - name: Update apt cache (NVIDIA repo)
+      ansible.builtin.apt:
+        update_cache: true
+      when: nvidia_list_copy.changed or (nvidia_keyring_cmd is defined and nvidia_keyring_cmd.changed)
 
     - name: Install NVIDIA container toolkit
-      apt:
+      ansible.builtin.apt:
         name: nvidia-container-toolkit
         state: present
-        update_cache: yes
+        update_cache: false
 
-    - name: Configure Docker runtime for NVIDIA
-      command: nvidia-ctk runtime configure --runtime=docker
-      changed_when: true
+    - name: Configure Docker runtime for NVIDIA (nvidia-ctk)
+      ansible.builtin.command: nvidia-ctk runtime configure --runtime=docker
+      register: nvidia_ctk
+      changed_when: >
+        (nvidia_ctk.stdout is defined and 'unchanged' not in nvidia_ctk.stdout|lower)
+        and (nvidia_ctk.stderr is defined and 'unchanged' not in nvidia_ctk.stderr|lower)
 
-    - name: Restart Docker after NVIDIA runtime config
-      systemd:
+    - name: Restart Docker after NVIDIA runtime config (only if changed)
+      ansible.builtin.systemd:
         name: docker
         state: restarted
+      when: nvidia_ctk.changed
 
     # ---- NVIDIA persistence mode ----
-    - name: Enable NVIDIA persistence mode now
-      command: nvidia-smi -pm 1
-      changed_when: true
+    - name: Query current NVIDIA persistence mode
+      ansible.builtin.shell: "nvidia-smi -q | awk -F': ' '/Persistence Mode/{print $2; exit}'"
+      args:
+        executable: /bin/bash
+      register: persistence_mode
+      changed_when: false
+      failed_when: persistence_mode.rc != 0
+
+    - name: Enable NVIDIA persistence mode now (if disabled)
+      ansible.builtin.command: nvidia-smi -pm 1
+      when: persistence_mode.stdout | trim == "Disabled"
 
     - name: Install a systemd unit to enable persistence mode at boot
-      copy:
+      ansible.builtin.copy:
         dest: /etc/systemd/system/nvidia-persistenced-ansible.service
         mode: "0644"
         content: |
@@ -132,7 +181,7 @@
           WantedBy=multi-user.target
 
     - name: Enable persistence-mode service
-      systemd:
+      ansible.builtin.systemd:
         name: nvidia-persistenced-ansible.service
         enabled: true
         state: started

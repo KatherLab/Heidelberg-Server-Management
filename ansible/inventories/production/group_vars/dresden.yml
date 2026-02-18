@@ -1,0 +1,6 @@
+# inventories/production/group_vars/dresden.yml
+# Connection defaults for Dresden hosts (VPN / GoodAccess).
+
+ansible_user: swarm
+ansible_become: true
+ansible_become_method: sudo

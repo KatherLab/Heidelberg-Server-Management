@@ -1,24 +1,32 @@
-- name: Base config for lab Heidelberg servers
+# playbooks/base.yml
+#
+# Baseline OS configuration that should be safe to run repeatedly (idempotent).
+# Applies to the full Heidelberg lab group by default.
+#
+# Variables:
+# - base_packages (list) in inventories/.../group_vars/all.yml
+# - lab_group (string)   in inventories/.../group_vars/all.yml
+
+- name: Base config for lab servers (packages + common group)
   hosts: heidelberg
   become: true
 
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
+    - name: Update apt cache (1h validity)
+      ansible.builtin.apt:
+        update_cache: true
         cache_valid_time: 3600
 
-    - name: Upgrade installed packages (safe default)
-      apt:
+    - name: Upgrade installed packages (dist-upgrade)
+      ansible.builtin.apt:
         upgrade: dist
 
     - name: Install baseline packages
-      apt:
+      ansible.builtin.apt:
         name: "{{ base_packages }}"
         state: present
 
     - name: Ensure lab group exists
-      group:
+      ansible.builtin.group:
         name: "{{ lab_group }}"
         state: present
-

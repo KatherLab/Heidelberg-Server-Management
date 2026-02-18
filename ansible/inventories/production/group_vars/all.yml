@@ -1,4 +1,9 @@
-# Keep base packages small and stable
+# inventories/production/group_vars/all.yml
+#
+# Variables shared by all groups/hosts in the production inventory.
+
+# Keep base packages small and stable (foundation used by playbooks/base.yml).
+# Add only universally safe packages here.
 base_packages:
   - build-essential
   - git
@@ -12,6 +17,5 @@ base_packages:
   - python3-pip
   - python3-venv
 
-# Optional: a shared "lab" group for file permissions
+# Shared "lab" group for file permissions / shared directories.
 lab_group: lab
-
