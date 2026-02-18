@@ -1,0 +1,22 @@
+- name: Audit manual packages per host
+  hosts: gpu
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Collect manual packages
+      shell: "apt-mark showmanual | sort"
+      register: manual
+      changed_when: false
+
+    - name: Write manual package list on remote
+      copy:
+        dest: "/tmp/apt-manual.txt"
+        content: "{{ manual.stdout }}\n"
+        mode: "0644"
+
+    - name: Fetch list to controller
+      fetch:
+        src: "/tmp/apt-manual.txt"
+        dest: "audits/{{ inventory_hostname }}-apt-manual.txt"
+        flat: true

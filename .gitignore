@@ -3,3 +3,4 @@
 .vault_pass.txt
 *.pem
 *.key
+.secrets/

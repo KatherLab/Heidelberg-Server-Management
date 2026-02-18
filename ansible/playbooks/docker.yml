@@ -5,6 +5,10 @@
   vars:
     docker_users:
       - jeff   # add more if you want, but consider security implications
+    docker_apt_arch_map:
+      x86_64: amd64
+      aarch64: arm64
+    docker_apt_arch: "{{ docker_apt_arch_map.get(ansible_architecture, ansible_architecture) }}"
 
   tasks:
     - name: Remove snap docker if present
@@ -50,7 +54,7 @@
 
     - name: Add Docker apt repository
       apt_repository:
-        repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        repo: "deb [arch={{ docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         filename: docker
         state: present
 
