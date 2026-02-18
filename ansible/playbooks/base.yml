@@ -1,5 +1,5 @@
 - name: Base config for lab GPU servers
-  hosts: gpu
+  hosts: heidelberg
   become: true
 
   tasks:

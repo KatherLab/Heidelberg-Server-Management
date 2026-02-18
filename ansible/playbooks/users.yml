@@ -1,5 +1,5 @@
 - name: Create / manage lab member accounts (non-sudo)
-  hosts: gpu
+  hosts: heidelberg
   become: true
   vars_files:
     - ../vault/lab_users.vault.yml

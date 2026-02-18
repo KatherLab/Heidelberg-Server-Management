@@ -1,5 +1,5 @@
 - name: Install Docker Engine (apt) + NVIDIA Container Toolkit + persistence mode
-  hosts: gpu
+  hosts: heidelberg
   become: true
 
   vars:

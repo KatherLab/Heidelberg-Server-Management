@@ -1,5 +1,5 @@
 - name: Check NVIDIA GPUs
-  hosts: gpu
+  hosts: heidelberg
   gather_facts: false
 
   tasks:

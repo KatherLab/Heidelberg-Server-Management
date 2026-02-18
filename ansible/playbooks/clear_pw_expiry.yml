@@ -1,5 +1,5 @@
 - name: Clear forced password change for existing lab users
-  hosts: gpu
+  hosts: heidelberg
   become: true
   vars_files:
     - ../vault/lab_users.vault.yml
