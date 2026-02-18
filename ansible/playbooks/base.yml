@@ -1,4 +1,4 @@
-- name: Base config for lab GPU servers
+- name: Base config for lab Heidelberg servers
   hosts: heidelberg
   become: true
 
