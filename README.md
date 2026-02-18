@@ -9,19 +9,19 @@ from a macOS control machine.
 
 ## Production GPU Servers
 
-| Hostname | IP Address      | GPU Type |
-|----------|-----------------|----------|
-| Pixel    | 129.206.138.101 | RTX 5070 |
-| Cosmos   | 129.206.138.69  | RTX 5070 |
-| Photon   | 129.206.138.91  | RTX 4090 |
+| Hostname | IP Address      | GPU Type       |
+|----------|-----------------|----------------|
+| Pixel    | 129.206.138.101 | RTX 5070  12GB |
+| Cosmos   | 129.206.138.69  | RTX 5070  12GB |
+| Photon   | 129.206.138.91  | RTX 4090  24GB |
 
-## Additional Internal Nodes
+## Additional DL Nodes with Goodaccess VPN connection
 
-| Hostname | IP Address   |
-|----------|--------------|
-| DL0      | 172.24.4.103 |
-| DL2      | 172.24.4.97  |
-| DL3      | 172.24.4.101 |
+| Hostname | IP Address   | GPU Type      |
+|----------|--------------|---------------|
+| DL0      | 172.24.4.103 | RTX 6000 24GB |
+| DL2      | 172.24.4.97  | RTX 6000 24GB |
+| DL3      | 172.24.4.101 | RTX 8000 48GB |
 
 ------------------------------------------------------------------------
 
@@ -60,10 +60,10 @@ Never use `sudo` for personal experiments.
 
 # Repository Structure
 
-    Heidelberg-Server-Management-ansible/
+    Heidelberg-Server-Management/
     │
-    ├── README.txt (rename to README.md if desired)
-    ├── ADMIN-SOP.txt (rename to ADMIN-SOP.md if desired)
+    ├── README.md
+    ├── ADMIN-SOP.md
     │
     └── ansible/
         ├── ansible.cfg

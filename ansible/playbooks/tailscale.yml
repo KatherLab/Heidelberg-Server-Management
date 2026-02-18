@@ -1,0 +1,43 @@
+- name: Install and configure Tailscale
+  hosts: gpu
+  become: true
+
+  vars:
+    tailscale_keyring_path: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    tailscale_list_path: /etc/apt/sources.list.d/tailscale.list
+
+  tasks:
+
+    - name: Ensure keyrings directory exists
+      file:
+        path: /usr/share/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Tailscale GPG key
+      get_url:
+        url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg"
+        dest: "{{ tailscale_keyring_path }}"
+        mode: '0644'
+
+    - name: Add Tailscale apt repository
+      copy:
+        dest: "{{ tailscale_list_path }}"
+        content: |
+          deb [signed-by={{ tailscale_keyring_path }}] https://pkgs.tailscale.com/stable/ubuntu {{ ansible_distribution_release }} main
+        mode: '0644'
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Tailscale
+      apt:
+        name: tailscale
+        state: present
+
+    - name: Ensure tailscaled service is enabled
+      systemd:
+        name: tailscaled
+        enabled: true
+        state: started
